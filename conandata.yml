@@ -1,0 +1,12 @@
+# This file is managed by Conan, contents will be overwritten.
+# To keep your changes, remove these comment lines, but the plugin won't be able to modify your requirements
+
+requirements:
+  - "inipp/1.0.12"
+  - "whereami/cci.20220112"
+  - "assimp/5.4.2"
+  - "termcolor/2.1.0"
+  - "glm/1.0.1"
+  - "opengl/system"
+  - "glad/0.1.36"
+  - "glfw/3.3.8"
