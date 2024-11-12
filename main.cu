@@ -58,7 +58,11 @@ int main(const int argc, const char **argv) {
               << "    -> The G value used is " << cu_sim::G << "\n"
               << "    -> All other keys are ignored.\n"
               << "    -> Optional settings section [SETTINGS]:\n"
-              << "       -> time_scale: float (default 0.3)";
+              << "       -> time_scale: float (default 0.3)\n"
+              << "       -> history: int (default 100); the amount of previous steps for the trailing line\n"
+              << "       -> history_skip: int (default 100); the amount of steps before history is updated\n"
+              << "       -> eye: vec3 (default 0 0 7); the location of the camera\n"
+              << "       -> focus: vec3 (default 0 0 0); the location the camera looks at\n";
     return -1;
   }
 
@@ -67,23 +71,24 @@ int main(const int argc, const char **argv) {
     const cu_sim::shader shader("shaders/vertex.glsl", "shaders/fragment.glsl");
     const cu_sim::shader line_shader("shaders/vertex_line.glsl", "shaders/fragment.glsl");
     const cu_sim::object object("assets/body.obj", bodies.size());
-    const cu_sim::hist_line line(14, bodies.size());
+    const cu_sim::hist_line line(settings.history_size, bodies.size());
     cu_sim::camera camera(settings.eye, settings.focus, {0, 1, 0});
     camera.fov_y = 90.0f;
 
-    cu_sim::stepper simulator(object.cuda_buffers(), line.cuda_handles(), bodies, 10);
+    cu_sim::stepper simulator(object.cuda_buffers(), line.cuda_handles(), bodies, settings.history_size, settings.history_skip);
 
     auto &render = cu_sim::gl_wrapper::get();
     render.clear();
     render.frame();
     auto &counter = cu_sim::fps_counter::get();
     bool step = true;
+    size_t frame = 0;
     while(!render.should_close()) {
       render.clear();
       if(render.toggle_progress()) step = !step;
 
       if(step)
-        simulator.step(render.delta_time() * settings.time_scale);
+        simulator.step(render.delta_time() * settings.time_scale, frame);
 
       if(render.is_zoom_in()) {
         camera.eye.z *= 0.8f;
@@ -102,11 +107,12 @@ int main(const int argc, const char **argv) {
       line_shader.enable();
       line_shader.set_m4(1, camera.view_matrix());
       line_shader.set_m4(2, camera.projection_matrix());
-      line.draw();
+      line.draw(line_shader);
 
       counter.draw();
 
       render.frame();
+      ++frame;
     }
   }
   catch(const std::exception &e) {

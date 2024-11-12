@@ -5,11 +5,11 @@
 #ifndef LINE_CUH
 #define LINE_CUH
 
-#include <vector>
+#include "shader.cuh"
 
 namespace cu_sim {
 struct line_handles {
-  std::vector<unsigned int> history;
+  unsigned int history;
   unsigned int color;
 };
 
@@ -19,15 +19,16 @@ public:
   hist_line(const hist_line &) = delete;
   hist_line &operator=(const hist_line &) = delete;
 
-  void draw() const;
+  void draw(const shader &s) const;
   constexpr const line_handles &cuda_handles() const { return cuda; }
 
   ~hist_line();
 
 private:
-  unsigned int vao;
-  unsigned int vbo;
-  line_handles cuda;
+  unsigned int vao = 0;
+  unsigned int vbo = 0;
+  unsigned int tbo = 0;
+  line_handles cuda{};
   size_t history_size;
   size_t instance_count;
 };

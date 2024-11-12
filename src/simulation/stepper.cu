@@ -9,17 +9,20 @@
 using namespace cu_sim;
 
 __global__ void setup_kernel(
-  const body *__restrict__ bodies, float3 **__restrict__ history, float3 *__restrict__ line_color,
+  const body *__restrict__ bodies, float3 *__restrict__ history, float3 *__restrict__ line_color,
   const size_t count, const size_t hist_size
 ) {
   const auto idx = threadIdx.x + blockIdx.x * blockDim.x;
   if(idx >= count) return;
+  for(size_t  i = 0; i < hist_size; i++)
+    history[hist_size * idx + i] = float3(bodies[idx].position.x, bodies[idx].position.y, bodies[idx].position.z);
+  line_color[idx] = float3(bodies[idx].color.x, bodies[idx].color.y, bodies[idx].color.z);
 }
 
 #include <iostream>
-stepper::stepper(const buffer_handles &buffers, const line_handles &handles, const std::vector<body> &initial_state, const size_t hist_size)
-  : pos_buf{buffers.pos}, radius_buf{buffers.radius}, color_buf{buffers.color}, history_buf{handles.history, [](auto h, auto s, auto e) { std::cout << "Handle #" << h << ": " << s << " bytes, " << e << " elements.\n"; }}, line_color_buf{handles.color},
-    history_length{hist_size}
+stepper::stepper(const buffer_handles &buffers, const line_handles &handles, const std::vector<body> &initial_state, const size_t hist_size, const size_t hist_skip)
+  : pos_buf{buffers.pos}, radius_buf{buffers.radius}, color_buf{buffers.color}, history_buf{handles.history}, line_color_buf{handles.color},
+    history_length{hist_size}, history_skip{hist_skip}
 {
   const size_t count = initial_state.size();
   if(pos_buf.element_count() != count) {
@@ -31,20 +34,13 @@ stepper::stepper(const buffer_handles &buffers, const line_handles &handles, con
   if(color_buf.element_count() != count) {
     throw std::runtime_error("Mismatched buffer sizes: " + std::to_string(count) + " != " + std::to_string(color_buf.element_count()));
   }
-  // TODO: check if this matches out?
-  // if(history_buf.element_count() != count * history_length) {
-  //   throw std::runtime_error("Mismatched buffer sizes: " + std::to_string(count * history_length) + " != " + std::to_string(history_buf.element_count()));
-  // }
-  // if(line_color_buf.element_count() != count) {
-  //   throw std::runtime_error("Mismatched buffer sizes: " + std::to_string(count) + " != " + std::to_string(line_color_buf.element_count()));
-  // }
 
   cuda_checked(cudaMalloc(&bodies, count * sizeof(body)));
   cuda_checked(cudaMemcpy(bodies, initial_state.data(), count * sizeof(body), cudaMemcpyHostToDevice));
   cuda_checked(cudaMalloc(&back_buffer, count * sizeof(body)));
   cuda_checked(cudaMemcpy(back_buffer, initial_state.data(), count * sizeof(body), cudaMemcpyHostToDevice));
 
-  cudaDeviceProp prop;
+  cudaDeviceProp prop{};
   cuda_checked(cudaGetDeviceProperties(&prop, 0));
   grid = dim3{static_cast<unsigned int>(count / prop.maxThreadsPerBlock + 1), 1, 1};
   block = dim3{static_cast<unsigned int>(prop.maxThreadsPerBlock), 1, 1};
@@ -83,8 +79,8 @@ __global__ void step_kernel(
 __global__ void copy_kernel(
   body *__restrict__ bodies, const body *__restrict__ back,
   float3 *__restrict__ pos, float *__restrict__ radius, float3 *__restrict__ color,
-  float3 **__restrict__ history, float3 *__restrict__ line_color,
-  const size_t count, const size_t history_size
+  float3 *__restrict__ history, float3 *__restrict__ line_color,
+  const size_t count, const size_t history_size, const bool step_history
 ) {
   const auto idx = threadIdx.x + blockIdx.x * blockDim.x;
   if(idx >= count) return;
@@ -102,25 +98,30 @@ __global__ void copy_kernel(
   color[idx].z = bodies[idx].color.z;
 
   line_color[idx] = color[idx];
-  for(size_t i = history_size - 1; i > 0; i--) {
-    history[i][idx] = history[i - 1][idx];
+  if(step_history) {
+    for(size_t i = history_size - 1; i > 0; i--) {
+      history[idx * history_size + i] = history[idx * history_size + i - 1];
+    }
   }
-  history[0][idx] = pos[idx];
+  history[idx * history_size] = pos[idx];
 
-  printf("[Thread %03u]: history ~ (%5f, %5f, %5f) <- (%5f, %5f, %5f) <- (%5f, %5f, %5f)\n",
-    idx,
-    history[0][idx].x, history[0][idx].y, history[0][idx].z,
-    history[1][idx].x, history[1][idx].y, history[1][idx].z,
-    history[2][idx].x, history[2][idx].y, history[2][idx].z
-  );
+  // printf("[%3d]: History: (%5f, %5f, %5f)[%03lu] <- (%5f, %5f, %5f)[%03lu] <- (%5f, %5f, %5f)[%03lu]\n",
+  //   idx,
+  //   history[idx * history_size].x, history[idx * history_size].y, history[idx * history_size].z, idx * history_size,
+  //   history[idx * history_size + 1].x, history[idx * history_size + 1].y, history[idx * history_size + 1].z, idx * history_size + 1,
+  //   history[idx * history_size + 2].x, history[idx * history_size + 2].y, history[idx * history_size + 2].z, idx * history_size + 2
+  // );
 }
 
-void stepper::step(const float dt) {
+void stepper::step(const float dt, const size_t frame_idx) {
   step_kernel<<<grid, block>>>(bodies, back_buffer, pos_buf.element_count(), dt);
   cuda_checked(cudaPeekAtLastError());
   cuda_checked(cudaDeviceSynchronize());
   // explicit synchronization - forces all threads to complete before copying
-  copy_kernel<<<grid, block>>>(bodies, back_buffer, pos_buf, radius_buf, color_buf, history_buf, line_color_buf, pos_buf.element_count(), history_length);
+  copy_kernel<<<grid, block>>>(
+    bodies, back_buffer, pos_buf, radius_buf, color_buf, history_buf, line_color_buf, pos_buf.element_count(),
+    history_length, (frame_idx % history_skip) == 0
+  );
   cuda_checked(cudaPeekAtLastError());
   cuda_checked(cudaDeviceSynchronize());
 }

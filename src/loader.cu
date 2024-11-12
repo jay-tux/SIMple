@@ -77,6 +77,8 @@ std::pair<std::vector<cu_sim::body>, cu_sim::settings> cu_sim::load_bodies(const
       set.time_scale = get<float>(def, section, "time_scale", set.time_scale, [](const std::string &x){ return std::stof(x); });
       set.eye = get<glm::vec3>(def, section, "eye", set.eye, parse_vec);
       set.focus = get<glm::vec3>(def, section, "focus", set.focus, parse_vec);
+      set.history_size = get<int>(def, section, "history", set.history_size, [](const std::string &x) { return std::stoi(x); });
+      set.history_skip = get<int>(def, section, "history_skip", set.history_size, [](const std::string &x) { return std::stoi(x); });
       continue;
     }
     body b{};
