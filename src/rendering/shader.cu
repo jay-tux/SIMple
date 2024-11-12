@@ -67,14 +67,29 @@ void shader::enable() const {
   glUseProgram(shader_id);
 }
 
-void shader::set_m4(const uint name, const glm::mat4 &value) const {
+void shader::set_m4(const int name, const glm::mat4 &value) const {
   enable();
   glUniformMatrix4fv(name, 1, GL_FALSE, glm::value_ptr(value));
 }
 
-void shader::set_float(const uint name, const float value) const {
+void shader::set_float(const int name, const float value) const {
   enable();
   glUniform1f(name, value);
+}
+
+void shader::set_int(const int name, const int value) const {
+  enable();
+  glUniform1i(name, value);
+}
+
+void shader::set_vec2(const int name, const glm::vec2 &value) const {
+  enable();
+  glUniform2fv(name, 1, glm::value_ptr(value));
+}
+
+void shader::set_vec4(const int name, const glm::vec4 &value) const {
+  enable();
+  glUniform4fv(name, 1, glm::value_ptr(value));
 }
 
 shader::~shader() {

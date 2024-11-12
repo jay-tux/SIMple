@@ -19,6 +19,7 @@ find_package(termcolor)
 find_package(assimp)
 find_package(whereami)
 find_package(inipp)
+find_package(stb)
 
 add_executable(cusim main.cu
         src/path.cu
@@ -28,6 +29,9 @@ add_executable(cusim main.cu
         src/rendering/camera.cu
         src/simulation/stepper.cu
         src/loader.cu
+        src/rendering/line.cu
+        src/rendering/fps_counter.cu
+        src/stb_impl.cu
 )
 
 set_target_properties(cusim PROPERTIES
@@ -36,7 +40,7 @@ set_target_properties(cusim PROPERTIES
 target_include_directories(cusim PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(cusim
         opengl::opengl glfw glad::glad glm::glm termcolor::termcolor assimp::assimp
-        whereami::whereami inipp::inipp
+        whereami::whereami inipp::inipp stb::stb
 )
 
 file(CREATE_LINK "${CMAKE_SOURCE_DIR}/assets" "${CMAKE_BINARY_DIR}/assets" COPY_ON_ERROR SYMBOLIC)

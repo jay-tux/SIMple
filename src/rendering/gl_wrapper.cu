@@ -30,7 +30,7 @@ gl_wrapper::gl_wrapper() {
   glEnable(GL_DEPTH_TEST);
   glClearColor(0, 0, 0, 0);
 
-  last_time = glfwGetTime();
+  fps_ << glfwGetTime();
 }
 
 gl_wrapper &gl_wrapper::get() {
@@ -56,17 +56,11 @@ float gl_wrapper::aspect() const {
 void gl_wrapper::frame() {
   glfwSwapBuffers(win);
   glfwPollEvents();
-  last_time = glfwGetTime();
+  fps_ << glfwGetTime();
   exit.shift_in(glfwGetKey(win, GLFW_KEY_ESCAPE) == GLFW_PRESS);
   play_pause.shift_in(glfwGetKey(win, GLFW_KEY_SPACE) == GLFW_PRESS);
-}
-
-float gl_wrapper::time() const {
-  return last_time;
-}
-
-float gl_wrapper::delta_time() const {
-  return glfwGetTime() - last_time;
+  zoom_in.shift_in(glfwGetKey(win, GLFW_KEY_KP_ADD) == GLFW_PRESS);
+  zoom_out.shift_in(glfwGetKey(win, GLFW_KEY_KP_SUBTRACT) == GLFW_PRESS);
 }
 
 bool gl_wrapper::should_close() const {

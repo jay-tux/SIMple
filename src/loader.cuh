@@ -7,11 +7,18 @@
 
 #include <string>
 #include <vector>
+#include <glm/vec3.hpp>
 
 #include "simulation/stepper.cuh"
 
 namespace cu_sim {
-std::vector<body> load_bodies(const std::string &infile);
+struct settings {
+  float time_scale = 1e-3f;
+  glm::vec3 eye{0.0f, 0.0f, 7.0f};
+  glm::vec3 focus{0.0f, 0.0f, 0.0f};
+};
+
+std::pair<std::vector<body>, settings> load_bodies(const std::string &infile);
 }
 
 #endif //LOADER_CUH

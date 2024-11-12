@@ -41,7 +41,7 @@ T get(const inipp::Ini<char>::Section &s, const std::string &section_name, const
 
 cu_sim::vec parse_vec(const std::string &str) {
   std::stringstream strm(str);
-  cu_sim::vec res;
+  cu_sim::vec res{};
   std::string buf;
   strm >> buf;
   res.x = std::stof(buf);
@@ -58,8 +58,9 @@ bool true_false_on_off(const std::string &x) {
   throw std::runtime_error("Invalid value for mass_div_g: " + x);
 }
 
-std::vector<cu_sim::body> cu_sim::load_bodies(const std::string &infile) {
+std::pair<std::vector<cu_sim::body>, cu_sim::settings> cu_sim::load_bodies(const std::string &infile) {
   std::vector<body> res;
+  settings set{};
 
   std::ifstream strm(infile);
   if(!strm.is_open()) {
@@ -72,7 +73,13 @@ std::vector<cu_sim::body> cu_sim::load_bodies(const std::string &infile) {
   res.reserve(parser.sections.size());
 
   for(const auto &[section, def]: parser.sections) {
-    body b;
+    if(section == "SETTINGS") {
+      set.time_scale = get<float>(def, section, "time_scale", set.time_scale, [](const std::string &x){ return std::stof(x); });
+      set.eye = get<glm::vec3>(def, section, "eye", set.eye, parse_vec);
+      set.focus = get<glm::vec3>(def, section, "focus", set.focus, parse_vec);
+      continue;
+    }
+    body b{};
 
     b.position = get<vec>(def, section, "position", parse_vec);
     b.velocity = get<vec>(def, section, "velocity", parse_vec);
@@ -93,5 +100,5 @@ std::vector<cu_sim::body> cu_sim::load_bodies(const std::string &infile) {
     res.push_back(b);
   }
 
-  return res;
+  return {res, set};
 }

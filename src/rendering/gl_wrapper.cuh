@@ -32,6 +32,23 @@ private:
   uint8_t state = 0b00;
 };
 
+class fps_fsm {
+public:
+  fps_fsm &operator<<(const float time) {
+    for(int i = 0; i < 3; i++) {
+      times[i] = times[i + 1];
+    }
+    times[3] = time;
+    return *this;
+  }
+
+  constexpr float delta() const { return times[1] - times[0]; }
+  constexpr float fps() const { return 3.0f / (times[3] - times[0]); }
+  constexpr float time() const { return times[1]; }
+private:
+  float times[4] { 0, 0 };
+};
+
 class gl_wrapper {
 public:
   gl_wrapper(const gl_wrapper &) = delete;
@@ -45,22 +62,26 @@ public:
   void clear() const;
   void frame();
   float aspect() const;
-  float time() const;
-  float delta_time() const;
-  inline float fps() const { return 1.0f / delta_time(); }
+  constexpr float time() const { return fps_.time(); }
+  constexpr float delta_time() const { return fps_.delta(); }
+  constexpr float fps() const { return fps_.fps(); }
   bool should_close() const;
   constexpr bool toggle_progress() const {
     return play_pause.state_release();
   }
+  constexpr bool is_zoom_in() const { return zoom_in.state_release(); }
+  constexpr bool is_zoom_out() const { return zoom_out.state_release(); }
 
   ~gl_wrapper();
 private:
   gl_wrapper();
 
   GLFWwindow *win;
-  float last_time;
   key_fsm play_pause;
   key_fsm exit;
+  key_fsm zoom_in;
+  key_fsm zoom_out;
+  fps_fsm fps_;
 };
 }
 

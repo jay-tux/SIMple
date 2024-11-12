@@ -5,11 +5,17 @@
 #ifndef DATA_CUH
 #define DATA_CUH
 
+#include <glm/glm.hpp>
+
 namespace cu_sim {
 struct vec {
   float x;
   float y;
   float z;
+
+  __host__ operator glm::vec3() const {
+    return {x, y, z};
+  }
 
   __host__ __device__ vec operator+(const vec &other) const {
     return {x + other.x, y + other.y, z + other.z};

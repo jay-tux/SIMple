@@ -13,7 +13,6 @@ layout(location = 2) uniform mat4 projection;
 out vec3 color;
 
 void main() {
-//    vec4 model = radius * vec4(pos, 1.0) + vec4(offset, 0.0f);
     vec4 model = vec4(radius * pos, 1.0) + vec4(offset, 0.0f);
     gl_Position = projection * view * model;
     color = in_color;

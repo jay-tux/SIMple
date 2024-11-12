@@ -15,7 +15,6 @@
 
 using namespace cu_sim;
 
-#include <iostream>
 object::object(const std::string &path, const size_t instances) {
   gl_wrapper::force_initialized();
 
