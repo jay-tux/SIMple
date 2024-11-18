@@ -10,32 +10,54 @@
 #include "simulation/stepper.cuh"
 #include "loader.cuh"
 
-__global__ void micro_kernel(float3 *pos, float *radius, float3 *color, const size_t count, const float time) {
-  auto idx = threadIdx.x + blockIdx.x * blockDim.x;
-  if(idx >= count) return;
+template <bool history, bool moving_cam>
+void render_loop(
+  cu_sim::gl_wrapper &render, const cu_sim::settings &settings, cu_sim::stepper &simulator, const cu_sim::shader &shader,
+  cu_sim::moving_cam &camera, const cu_sim::object &object, const cu_sim::shader &line_shader, const cu_sim::hist_line &line
+) {
+  static size_t frame = 0;
+  static bool step = true;
 
-  if(idx % 2 == 0) {
-    pos[idx].x = sinf(time);
-    pos[idx].y = 0;
-    pos[idx].z = 0;
+  render.clear();
+  if(render.toggle_progress()) step = !step;
 
-    radius[idx] = abs(cosf(time));
-
-    color[idx].x = 1.0f - abs(tanhf(sinf(time)));
-    color[idx].y = abs(tanhf(cosf(time)));
-    color[idx].z = 0.0f;
+  if(step) {
+    if constexpr(history)
+      simulator.step(render.delta_time() * settings.time_scale, frame);
+    else
+      simulator.step_no_history(render.delta_time() * settings.time_scale, frame);
   }
-  else {
-    pos[idx].x = 0;
-    pos[idx].y = cosf(time);
-    pos[idx].z = 0;
 
-    radius[idx] = abs(sinf(time));
-
-    color[idx].x = 0.0f;
-    color[idx].y = abs(tanhf(sinf(time)));
-    color[idx].z = 1.0f - abs(tanhf(cosf(time)));
+  if(render.is_zoom_in()) {
+    camera.camera.fov_y *= 0.9f;
   }
+  if(render.is_zoom_out()) {
+    camera.camera.fov_y *= 1.11f;
+  }
+
+  if constexpr(moving_cam) camera.interpolate(render.delta_time());
+
+  shader.enable();
+  shader.set_m4(1, camera.camera.view_matrix()); // view
+  shader.set_m4(2, camera.camera.projection_matrix()); // projection
+  shader.set_vec3(4, camera.camera.eye); // light pos
+  shader.set_vec3(5, glm::vec3{ 0.7f, 0.65f, 0.6f }); // light color
+  shader.set_float(6, 1.0f); // ambient factor
+  shader.set_vec3(7, camera.camera.eye); // view pos
+  shader.set_float(8, 16.0f); // phong exponent
+  object.draw();
+
+  if constexpr (history) {
+    line_shader.enable();
+    line_shader.set_m4(1, camera.camera.view_matrix());
+    line_shader.set_m4(2, camera.camera.projection_matrix());
+    line.draw(line_shader);
+  }
+
+  cu_sim::fps_counter::get().draw();
+
+  render.frame();
+  ++frame;
 }
 
 int main(const int argc, const char **argv) {
@@ -58,62 +80,49 @@ int main(const int argc, const char **argv) {
               << "    -> The G value used is " << cu_sim::G << "\n"
               << "    -> All other keys are ignored.\n"
               << "    -> Optional settings section [SETTINGS]:\n"
-              << "       -> time_scale: float (default 0.3)\n"
+              << "       -> time_scale: float (default 0.001)\n"
               << "       -> history: int (default 100); the amount of previous steps for the trailing line\n"
               << "       -> history_skip: int (default 100); the amount of steps before history is updated\n"
+              << "       -> history_render: bool (default true); whether or not to render history lines\n"
               << "       -> eye: vec3 (default 0 0 7); the location of the camera\n"
-              << "       -> focus: vec3 (default 0 0 0); the location the camera looks at\n";
+              << "       -> focus: vec3 (default 0 0 0); the location the camera looks at\n"
+              << "       -> moving_cam: bool (default false); toggles a randomly moving camera, always focused on focus\n"
+              << "       -> cam_time_scale: float (default 0.1); speed of the (randomly moving) camera\n"
+    ;
     return -1;
   }
 
   try {
     const auto [bodies, settings] = cu_sim::load_bodies(argv[1]);
     const cu_sim::shader shader("shaders/vertex.glsl", "shaders/fragment.glsl");
-    const cu_sim::shader line_shader("shaders/vertex_line.glsl", "shaders/fragment.glsl");
+    const cu_sim::shader line_shader("shaders/vertex_line.glsl", "shaders/fragment_line.glsl");
     const cu_sim::object object("assets/body.obj", bodies.size());
     const cu_sim::hist_line line(settings.history_size, bodies.size());
-    cu_sim::camera camera(settings.eye, settings.focus, {0, 1, 0});
-    camera.fov_y = 90.0f;
+    cu_sim::camera cam(settings.eye, settings.focus, {0, 1, 0});
+    cam.fov_y = 90.0f;
+
+    cu_sim::moving_cam camera(cam, settings.cam_time_scale);
 
     cu_sim::stepper simulator(object.cuda_buffers(), line.cuda_handles(), bodies, settings.history_size, settings.history_skip);
 
     auto &render = cu_sim::gl_wrapper::get();
     render.clear();
     render.frame();
-    auto &counter = cu_sim::fps_counter::get();
-    bool step = true;
-    size_t frame = 0;
-    while(!render.should_close()) {
-      render.clear();
-      if(render.toggle_progress()) step = !step;
 
-      if(step)
-        simulator.step(render.delta_time() * settings.time_scale, frame);
+#define RENDER_LOOP(hist, cam) do { \
+    render_loop<hist, cam>(render, settings, simulator, shader, camera, object, line_shader, line); \
+  } while(!render.should_close())
 
-      if(render.is_zoom_in()) {
-        camera.eye.z *= 0.8f;
-        camera.fov_y *= 0.9f;
-      }
-      if(render.is_zoom_out()) {
-        camera.eye.z *= 1.25f;
-        camera.fov_y *= 1.11f;
-      }
-
-      shader.enable();
-      shader.set_m4(1, camera.view_matrix());
-      shader.set_m4(2, camera.projection_matrix());
-      object.draw();
-
-      line_shader.enable();
-      line_shader.set_m4(1, camera.view_matrix());
-      line_shader.set_m4(2, camera.projection_matrix());
-      line.draw(line_shader);
-
-      counter.draw();
-
-      render.frame();
-      ++frame;
+    if(settings.enable_history) {
+      if(settings.moving_cam) RENDER_LOOP(true, true);
+      else RENDER_LOOP(true, false);
     }
+    else {
+      if(settings.moving_cam) RENDER_LOOP(false, true);
+      else RENDER_LOOP(false, false);
+    }
+
+#undef RENDER_LOOP
   }
   catch(const std::exception &e) {
     std::cerr << e.what() << "\n";

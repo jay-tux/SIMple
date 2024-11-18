@@ -19,7 +19,7 @@ object::object(const std::string &path, const size_t instances) {
   gl_wrapper::force_initialized();
 
   Assimp::Importer importer;
-  const auto scene = importer.ReadFile(binary_path() / path, aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_FlipUVs);
+  const auto scene = importer.ReadFile(binary_path() / path, aiProcess_Triangulate | aiProcess_GenSmoothNormals);
   if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
     throw std::runtime_error("Failed to load model " + path + ": " + importer.GetErrorString());
   }
@@ -34,7 +34,7 @@ object::object(const std::string &path, const size_t instances) {
   std::vector<float> vertices;
   std::vector<unsigned int> indices;
 
-  vertices.reserve(mesh->mNumVertices * 8);
+  vertices.reserve(mesh->mNumVertices * 9);
   indices.reserve(mesh->mNumFaces * 3);
 
   for(size_t i = 0; i < mesh->mNumVertices; ++i) {
@@ -42,13 +42,15 @@ object::object(const std::string &path, const size_t instances) {
     vertices.push_back(mesh->mVertices[i].x);
     vertices.push_back(mesh->mVertices[i].y);
     vertices.push_back(mesh->mVertices[i].z);
-    // u v
-    vertices.push_back(mesh->mTextureCoords[0][i].x);
-    vertices.push_back(mesh->mTextureCoords[0][i].y);
     // nx ny nz
     vertices.push_back(mesh->mNormals[i].x);
     vertices.push_back(mesh->mNormals[i].y);
     vertices.push_back(mesh->mNormals[i].z);
+
+    // r g b
+    vertices.push_back(1.0f);
+    vertices.push_back(1.0f);
+    vertices.push_back(1.0f);
   }
 
   for(size_t i = 0; i < mesh->mNumFaces; ++i) {
@@ -64,12 +66,12 @@ object::object(const std::string &path, const size_t instances) {
   glGenBuffers(1, &vbo);
   glBindBuffer(GL_ARRAY_BUFFER, vbo);
   glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), nullptr);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), nullptr);
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), reinterpret_cast<void *>(3 * sizeof(float)));
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(float), reinterpret_cast<void *>(3 * sizeof(float)));
   glEnableVertexAttribArray(1);
-  glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), reinterpret_cast<void *>(5 * sizeof(float)));
-  glEnableVertexAttribArray(2);
+  glVertexAttribPointer(6, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), reinterpret_cast<void *>(6 * sizeof(float)));
+  glEnableVertexAttribArray(6);
 
   auto make_cuda_buffer = [instances](const int index, const int width) {
     unsigned int buf;

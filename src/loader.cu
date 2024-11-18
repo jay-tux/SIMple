@@ -79,6 +79,9 @@ std::pair<std::vector<cu_sim::body>, cu_sim::settings> cu_sim::load_bodies(const
       set.focus = get<glm::vec3>(def, section, "focus", set.focus, parse_vec);
       set.history_size = get<int>(def, section, "history", set.history_size, [](const std::string &x) { return std::stoi(x); });
       set.history_skip = get<int>(def, section, "history_skip", set.history_size, [](const std::string &x) { return std::stoi(x); });
+      set.enable_history = get(def, section, "history_render", set.enable_history, true_false_on_off);
+      set.moving_cam = get(def, section, "moving_cam", set.moving_cam, true_false_on_off);
+      set.cam_time_scale = get<float>(def, section, "cam_time_scale", set.cam_time_scale, [](const std::string &x){ return std::stof(x); });
       continue;
     }
     body b{};

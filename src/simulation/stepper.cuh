@@ -32,6 +32,7 @@ public:
   stepper &operator=(stepper &&) = delete;
 
   void step(float dt, size_t frame_idx);
+  void step_no_history(float dt, size_t frame_idx);
 
   ~stepper();
 private:

@@ -87,6 +87,11 @@ void shader::set_vec2(const int name, const glm::vec2 &value) const {
   glUniform2fv(name, 1, glm::value_ptr(value));
 }
 
+void shader::set_vec3(const int name, const glm::vec3 &value) const {
+  enable();
+  glUniform3fv(name, 1, glm::value_ptr(value));
+}
+
 void shader::set_vec4(const int name, const glm::vec4 &value) const {
   enable();
   glUniform4fv(name, 1, glm::value_ptr(value));

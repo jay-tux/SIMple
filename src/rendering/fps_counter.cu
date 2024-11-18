@@ -87,8 +87,6 @@ void fps_counter::draw() const {
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 
   glBindVertexArray(0);
-
-  std::cout << "FPS: " << fps << "\n";
 }
 
 fps_counter::~fps_counter() {

@@ -18,6 +18,9 @@ struct settings {
   glm::vec3 focus{0.0f, 0.0f, 0.0f};
   int history_size = 100;
   int history_skip = 100;
+  bool enable_history = true;
+  bool moving_cam = false;
+  float cam_time_scale = 1e-1f;
 };
 
 std::pair<std::vector<body>, settings> load_bodies(const std::string &infile);

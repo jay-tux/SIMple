@@ -104,13 +104,27 @@ __global__ void copy_kernel(
     }
   }
   history[idx * history_size] = pos[idx];
+}
 
-  // printf("[%3d]: History: (%5f, %5f, %5f)[%03lu] <- (%5f, %5f, %5f)[%03lu] <- (%5f, %5f, %5f)[%03lu]\n",
-  //   idx,
-  //   history[idx * history_size].x, history[idx * history_size].y, history[idx * history_size].z, idx * history_size,
-  //   history[idx * history_size + 1].x, history[idx * history_size + 1].y, history[idx * history_size + 1].z, idx * history_size + 1,
-  //   history[idx * history_size + 2].x, history[idx * history_size + 2].y, history[idx * history_size + 2].z, idx * history_size + 2
-  // );
+__global__ void copy_kernel_no_history(
+  body *__restrict__ bodies, const body *__restrict__ back,
+  float3 *__restrict__ pos, float *__restrict__ radius, float3 *__restrict__ color,
+  const size_t count
+) {
+  const auto idx = threadIdx.x + blockIdx.x * blockDim.x;
+  if(idx >= count) return;
+
+  bodies[idx] = back[idx];
+
+  pos[idx].x = bodies[idx].position.x;
+  pos[idx].y = bodies[idx].position.y;
+  pos[idx].z = bodies[idx].position.z;
+
+  radius[idx] = bodies[idx].radius;
+
+  color[idx].x = bodies[idx].color.x;
+  color[idx].y = bodies[idx].color.y;
+  color[idx].z = bodies[idx].color.z;
 }
 
 void stepper::step(const float dt, const size_t frame_idx) {
@@ -121,6 +135,18 @@ void stepper::step(const float dt, const size_t frame_idx) {
   copy_kernel<<<grid, block>>>(
     bodies, back_buffer, pos_buf, radius_buf, color_buf, history_buf, line_color_buf, pos_buf.element_count(),
     history_length, (frame_idx % history_skip) == 0
+  );
+  cuda_checked(cudaPeekAtLastError());
+  cuda_checked(cudaDeviceSynchronize());
+}
+
+void stepper::step_no_history(const float dt, const size_t frame_idx) {
+  step_kernel<<<grid, block>>>(bodies, back_buffer, pos_buf.element_count(), dt);
+  cuda_checked(cudaPeekAtLastError());
+  cuda_checked(cudaDeviceSynchronize());
+  // explicit synchronization - forces all threads to complete before copying
+  copy_kernel_no_history<<<grid, block>>>(
+    bodies, back_buffer, pos_buf, radius_buf, color_buf, pos_buf.element_count()
   );
   cuda_checked(cudaPeekAtLastError());
   cuda_checked(cudaDeviceSynchronize());
