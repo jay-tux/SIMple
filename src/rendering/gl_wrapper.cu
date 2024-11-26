@@ -30,6 +30,10 @@ gl_wrapper::gl_wrapper() {
   glEnable(GL_DEPTH_TEST);
   glClearColor(0, 0, 0, 0);
 
+  glfwSetFramebufferSizeCallback(win, [](GLFWwindow *, const int w, const int h) {
+    glViewport(0, 0, w, h);
+  });
+
   fps_ << glfwGetTime();
 }
 
