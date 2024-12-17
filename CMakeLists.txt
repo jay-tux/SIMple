@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.29)
 set(CMAKE_PROJECT_TOP_LEVEL_INCLUDES conan_provider.cmake)
 
 # Required for Conan
-set(CMAKE_CUDA_FLAGS_DEBUG "-G -g --diag-suppress 20012")
+set(CMAKE_CUDA_FLAGS_DEBUG "-G -g --diag-suppress 20012 --ptxas-options=-v")
 set(CMAKE_CUDA_FLAGS_RELEASE "-O3 --diag-suppress 20012")
 set(CMAKE_C_COMPILER "gcc")
 set(CMAKE_CXX_COMPILER "g++")
